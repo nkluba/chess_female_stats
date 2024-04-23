@@ -176,10 +176,23 @@ def main():
 
     for query in queries:
         print("Processing query:", query)
-        links = search_and_collect_data(driver, query)
-        print("Tournament links for query", query, ":", links)
+
+        csv_filename = query + '.csv'
+        if os.path.exists(csv_filename) == False:
+            links = search_and_collect_data(driver, query)
+            print("Tournament links for query", query, ":", links)
+
+            df = pd.DataFrame({'Link': links, 'Checked': False})
+            df.to_csv(csv_filename, index=False)
+        
+        else:
+            df = pd.read_csv(csv_filename)
+            links = df.loc[df['Checked'] == False, 'Link'].tolist()
+
         for link in links:
             process_url(link)
+            df.loc[df['Link'] == link, 'Checked'] = True
+            df.to_csv(csv_filename, index=False)
 
     driver.quit()
 

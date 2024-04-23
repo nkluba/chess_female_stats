@@ -32,6 +32,7 @@ def set_tournament_and_dates(driver, query):
     """Set the tournament search criteria and dates."""
     tournament_input = WebDriverWait(driver, 10).until(
         EC.visibility_of_element_located((By.CSS_SELECTOR, "input[aria-labelledby='P1_lb_bez']")))
+    tournament_input.clear()
     tournament_input.send_keys(query)
 
     start_date_input = WebDriverWait(driver, 10).until(
@@ -68,27 +69,29 @@ def get_html(driver, link):
     return driver.page_source
 
 
-def main():
-    driver = setup_driver()
-
-    open_website(driver, "https://chess-results.com/TurnierSuche.aspx?lan=1")
-    
-    accept_cookies(driver)
-    
-    set_tournament_and_dates(driver, query = "U12")
-    
-    set_max_results(driver, "5")  # 5 corresponds to 2000 results
-    
-    # Submit the search
+def search_and_collect_data(driver, query):
+    """Set search parameters, conduct search, and collect data links."""
+    set_tournament_and_dates(driver, query)
+    set_max_results(driver, "5")  # Assuming '5' corresponds to '2000'
     WebDriverWait(driver, 10).until(
         EC.visibility_of_element_located((By.CSS_SELECTOR, "input[aria-labelledby='P1_lb_bez']"))
     ).send_keys(Keys.ENTER)
-    
-    time.sleep(5)
-    
-    links = get_tournament_links(driver)
+    return get_tournament_links(driver)
+
+
+def main():
+    queries = ["European Youth", "International Open", "World Youth"]
+    driver = setup_driver()
+    open_website(driver, "https://chess-results.com/TurnierSuche.aspx?lan=1")
+    accept_cookies(driver)
+
+    for query in queries:
+        print("Processing query:", query)
+        links = search_and_collect_data(driver, query)
+        print("Tournament links for query", query, ":", links)
 
     driver.quit()
+
 
 if __name__ == "__main__":
     main()

@@ -12,9 +12,11 @@ def setup_driver():
     """Setup and return a Chrome WebDriver."""
     return webdriver.Chrome(service=Service(ChromeDriverManager().install()))
 
+
 def open_website(driver, url):
     """Open a website given its URL."""
     driver.get(url)
+
 
 def accept_cookies(driver):
     """Accept cookies on the website if the dialog appears."""
@@ -25,11 +27,12 @@ def accept_cookies(driver):
     except Exception as e:
         print(f"Could not find the cookies acceptance button: {e}")
 
-def set_tournament_and_dates(driver):
+
+def set_tournament_and_dates(driver, query):
     """Set the tournament search criteria and dates."""
     tournament_input = WebDriverWait(driver, 10).until(
         EC.visibility_of_element_located((By.CSS_SELECTOR, "input[aria-labelledby='P1_lb_bez']")))
-    tournament_input.send_keys("U12")
+    tournament_input.send_keys(query)
 
     start_date_input = WebDriverWait(driver, 10).until(
         EC.element_to_be_clickable((By.ID, "P1_txt_von_tag")))
@@ -41,11 +44,29 @@ def set_tournament_and_dates(driver):
     end_date_input.clear()
     end_date_input.send_keys("01.01.2020")
 
+
 def set_max_results(driver, value):
     """Set the maximum number of result lines in the search."""
     max_lines_dropdown = WebDriverWait(driver, 10).until(
         EC.element_to_be_clickable((By.ID, "P1_combo_anzahl_zeilen")))
     Select(max_lines_dropdown).select_by_value(value)
+
+
+def get_tournament_links(driver):
+    """Fetch all the tournament links from the results table."""
+    links = []
+    elements = driver.find_elements(By.CSS_SELECTOR, "table.CRs2 a")
+    for element in elements:
+        links.append(element.get_attribute('href'))
+    return links
+
+
+def get_html(driver, link):
+    """Navigate to the link and retrieve the HTML content."""
+    driver.get(link)
+    time.sleep(3)  # Giving the page time to load
+    return driver.page_source
+
 
 def main():
     driver = setup_driver()
@@ -54,7 +75,7 @@ def main():
     
     accept_cookies(driver)
     
-    set_tournament_and_dates(driver)
+    set_tournament_and_dates(driver, query = "U12")
     
     set_max_results(driver, "5")  # 5 corresponds to 2000 results
     
@@ -63,10 +84,9 @@ def main():
         EC.visibility_of_element_located((By.CSS_SELECTOR, "input[aria-labelledby='P1_lb_bez']"))
     ).send_keys(Keys.ENTER)
     
-    time.sleep(10)
+    time.sleep(5)
     
-    # html_content = driver.page_source
-    # print(html_content)
+    links = get_tournament_links(driver)
 
     driver.quit()
 

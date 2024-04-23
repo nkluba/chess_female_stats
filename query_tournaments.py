@@ -61,14 +61,18 @@ def extract_info_from_html(link):
     response = requests.get(link)
     soup = BeautifulSoup(response.text, 'html.parser')
     profile_info = soup.find('div', class_='profile-top-info')
+    print(profile_info)
 
-    federation = profile_info.find_all('div', class_='profile-top-info__block__row__data')[1].text.strip()
-    b_year = profile_info.find_all('div', class_='profile-top-info__block__row__data')[3].text.strip()
-    sex = profile_info.find_all('div', class_='profile-top-info__block__row__data')[4].text.strip()
-    fide_title = profile_info.find_all('div', class_='profile-top-info__block__row__data')[5].text.strip()
-    world_rank = profile_info.find('div', class_='profile-top-info__block__row__data').text.strip()
-    print(federation, b_year, sex, fide_title, world_rank)
-    return federation, b_year, sex, fide_title, world_rank
+    if profile_info is not None:
+        federation = profile_info.find_all('div', class_='profile-top-info__block__row__data')[1].text.strip()
+        b_year = profile_info.find_all('div', class_='profile-top-info__block__row__data')[3].text.strip()
+        sex = profile_info.find_all('div', class_='profile-top-info__block__row__data')[4].text.strip()
+        fide_title = profile_info.find_all('div', class_='profile-top-info__block__row__data')[5].text.strip()
+        world_rank = profile_info.find('div', class_='profile-top-info__block__row__data').text.strip()
+        print(federation, b_year, sex, fide_title, world_rank)
+        return federation, b_year, sex, fide_title, world_rank
+    else:
+        return None, None, None, None, None
 
 
 def parse_fide_data(df):

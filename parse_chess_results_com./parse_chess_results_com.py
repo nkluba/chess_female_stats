@@ -12,13 +12,15 @@ def parse_table(html_content):
     soup = BeautifulSoup(html_content, "html.parser")
     table = soup.find("table", class_="CRs1")
     headers = [header.text.strip() for header in table.find_all("th")]
+    headers.insert(5, "Link")
     data = []
     for row in table.find_all("tr"):
         row_data = []
         for cell in row.find_all(["td", "th"]):
             if cell.find("a"):  # If cell contains a link
                 link = cell.find("a")["href"]
-                row_data.append((cell.text.strip(), link))
+                row_data.append(cell.text.strip())
+                row_data.append(link)
             else:
                 row_data.append(cell.text.strip())
         if row_data:

@@ -30,11 +30,11 @@ def fix_headers(headers):
 def parse_table(html_content):
     """Parses HTML content and extracts table data."""
     soup = BeautifulSoup(html_content, "html.parser")
-    title = soup.title.string.strip()
+    title = soup.title.string.strip().replace("Chess-Results_Server_Chess-results.com_-_", "")
     print(title)
 
-    if "woman" in title.lower() and "girl" not in title.lower():
-        return None, None, None
+    #if "woman" in title.lower() or "girl" in title.lower() or "female" in title.lower():
+    #    return None, None, None
 
     table = soup.find("table", class_="CRs1")
     
@@ -57,10 +57,10 @@ def parse_table(html_content):
 
 
 def extract_info_from_html(link):
-    print(link)
     response = requests.get(link)
     soup = BeautifulSoup(response.text, 'html.parser')
     profile_info = soup.find('div', class_='profile-top-info')
+
     print(profile_info)
 
     if profile_info is not None:
@@ -77,9 +77,11 @@ def extract_info_from_html(link):
 
 def parse_fide_data(df):
     print(df)
-    if 'Link' in df.columns and not df['Link'].isnull().all():
     # Apply the function only to rows where 'Link' is not None
-        df.loc[df['Link'].notnull(), ['Federation', 'B-Year', 'Sex', 'FIDE Title', 'World Rank']] = df.loc[df['Link'].notnull(), 'Link'].apply(lambda x: pd.Series(extract_info_from_html(x)))
+    df = df.dropna(subset=['Link'])
+    if 'Link' in df.columns and not df['Link'].isnull().all():
+        df[['Federation', 'Birth Year', 'Sex', 'FIDE Title', 'World Rank']] = \
+            df['Link'].apply(lambda x: pd.Series(extract_info_from_html(x)))
     return df
 
 

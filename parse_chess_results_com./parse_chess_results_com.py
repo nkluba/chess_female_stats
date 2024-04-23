@@ -14,10 +14,17 @@ def parse_table(html_content):
     headers = [header.text.strip() for header in table.find_all("th")]
     data = []
     for row in table.find_all("tr"):
-        row_data = [cell.text.strip() for cell in row.find_all("td")]
+        row_data = []
+        for cell in row.find_all(["td", "th"]):
+            if cell.find("a"):  # If cell contains a link
+                link = cell.find("a")["href"]
+                row_data.append((cell.text.strip(), link))
+            else:
+                row_data.append(cell.text.strip())
         if row_data:
             data.append(row_data)
     return headers, data
+
 
 def create_dataframe(headers, data):
     """Creates a DataFrame from table headers and data."""

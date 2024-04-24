@@ -61,8 +61,6 @@ def extract_info_from_html(link):
     soup = BeautifulSoup(response.text, 'html.parser')
     profile_info = soup.find('div', class_='profile-top-info')
 
-    print(profile_info)
-
     if profile_info is not None:
         federation = profile_info.find_all('div', class_='profile-top-info__block__row__data')[1].text.strip()
         b_year = profile_info.find_all('div', class_='profile-top-info__block__row__data')[3].text.strip()
@@ -76,13 +74,17 @@ def extract_info_from_html(link):
 
 
 def parse_fide_data(df):
-    print(df)
-    # Apply the function only to rows where 'Link' is not None
-    df = df.dropna(subset=['Link'])
     if 'Link' in df.columns and not df['Link'].isnull().all():
+        print(df)
+    # Apply the function only to rows where 'Link' is not None
+        df = df.dropna(subset=['Link'])
+        # remove rows with wrong links. Sample (CZE instead of link): 45  45 Metastasio Niccolo CZE 0 None
+        df = df[df['Link'].str.startswith('http')]
         df[['Federation', 'Birth Year', 'Sex', 'FIDE Title', 'World Rank']] = \
             df['Link'].apply(lambda x: pd.Series(extract_info_from_html(x)))
-    return df
+        return df
+    else:
+        return None
 
 
 def create_dataframe(headers, data):
@@ -96,11 +98,12 @@ def process_url(url, save_path = "processed_data"):
 
     if table_data is not None:
         df = create_dataframe(headers, table_data)
-        df = parse_fide_data(df)
-        df = df[df['Link'].notna()]
-        print(df)
-        filename = f"{title.replace(' ', '_')}.csv"
-        df.to_csv(os.path.join(save_path, filename), index=False)
+        if 'Link' in df.columns:
+            print(df)
+            df = parse_fide_data(df)
+            df = df[df['Link'].notna()]
+            filename = f"{title.replace(' ', '_')}.csv"
+            df.to_csv(os.path.join(save_path, filename), index=False)
 
 
 def setup_driver():

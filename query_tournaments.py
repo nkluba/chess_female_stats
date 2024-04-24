@@ -89,8 +89,17 @@ def parse_fide_data(df):
 
 def create_dataframe(headers, data):
     """Creates a DataFrame from table headers and data."""
-    return pd.DataFrame(data, columns=headers).iloc[1: , :]
-
+    try: 
+        df = pd.DataFrame(data, columns=headers).iloc[1: , :]
+        return df
+    except Exception as e:
+        print("File can't be processed:", headers, data[:50])
+        return pd.DataFrame()
+    # Else for team championships with other 
+    # File can't be processed: ['Rk.', '', 'Team', '1b', '2b', '3b', '4b', '5b', '6b', 'TB1', 'TB2', 'TB3'] 
+    # [['Rk.', '', 'Team', '1a', '1b', '2a', '2b', '3a', '3b', '4a', '4b', '5a', '5b', '6a', '6b', 'TB1', 'TB2', 'TB3'], 
+    # ['1', '', 'Germany I', '*', '*', '1', '1½', '1½', '2', '1½', '1½', '1½', '2', '2', '1½', '19', '16', '0']
+    # 
 
 def process_url(url, save_path = "processed_data"):
     html_content = get_player_html(url)

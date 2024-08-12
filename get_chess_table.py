@@ -2,10 +2,12 @@ import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 
+
 def get_html(url):
     """Fetches HTML content from the given URL."""
     response = requests.get(url)
     return response.content
+
 
 def parse_table(html_content):
     """Parses HTML content and extracts table data."""
@@ -29,6 +31,7 @@ def parse_table(html_content):
             data.append(row_data)
     return headers, data, title
 
+
 def extract_info_from_html(link):
     response = requests.get(link)
     soup = BeautifulSoup(response.text, 'html.parser')
@@ -42,13 +45,16 @@ def extract_info_from_html(link):
     print(federation, b_year, sex, fide_title, world_rank)
     return federation, b_year, sex, fide_title, world_rank
 
+
 def parse_fide_data(df):
     df[['Federation', 'B-Year', 'Sex', 'FIDE Title', 'World Rank']] = df['Link'].apply(lambda x: pd.Series(extract_info_from_html(x)))
     return df
 
+
 def create_dataframe(headers, data):
     """Creates a DataFrame from table headers and data."""
     return pd.DataFrame(data, columns=headers).iloc[1: , :]
+
 
 def process_url(url, save_path = "processed_data"):
     html_content = get_html(url)
@@ -57,11 +63,10 @@ def process_url(url, save_path = "processed_data"):
     filename = f"{title.replace(' ', '_')}.csv"
     df.to_csv(filename, index=False)
 
-def process_xls(xls_name):
-    pass
 
 def main():
-    process_url("https://chess-results.com/tnr832523.aspx")
+    process_url("https://chess-results.com/tnr178566.aspx?lan=1")
+
 
 if __name__ == "__main__":
     main()

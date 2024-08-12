@@ -251,6 +251,12 @@ def search_and_collect_data(driver, query):
 
 def main():
     queries = ["European Youth", "International Open", "World Youth"]
+
+    # Create processed_data directory if it doesn't exist
+    save_path = "processed_data"
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+
     driver = setup_driver()
     open_website(driver, "https://chess-results.com/TurnierSuche.aspx?lan=1")
     accept_cookies(driver)
@@ -259,7 +265,7 @@ def main():
         print("Processing query:", query)
 
         csv_filename = query + ".csv"
-        if os.path.exists(csv_filename) == False:
+        if not os.path.exists(csv_filename):
             links = search_and_collect_data(driver, query)
             print("Tournament links for query", query, ":", links)
 
@@ -271,7 +277,7 @@ def main():
             links = df.loc[df["Checked"] == False, "Link"].tolist()
 
         for link in links:
-            process_url(link)
+            process_url(link, save_path=save_path)
             df.loc[df["Link"] == link, "Checked"] = True
             df.to_csv(csv_filename, index=False)
 

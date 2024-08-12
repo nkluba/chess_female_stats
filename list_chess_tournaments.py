@@ -129,28 +129,30 @@ def close_obstructive_elements(driver):
 
 
 def extract_details(soup):
-    details_content = soup.find('div', {'id': 'details_div'})  # Replace with the actual div ID
+    data = {}
+    details_table = soup.find('h2').find_next('table')  # find the main table following the h2 tag
+    if not details_table:
+        print("Details table not found")
+        return None
 
-    if details_content:
-        tournament_data = {
-            "Organizer": details_content.find(text="Organizer(s)").find_next().text,
-            "Federation": details_content.find(text="Federation").find_next().text,
-            "Director": details_content.find(text="Tournament director").find_next().text,
-            "Arbiter": details_content.find(text="Chief Arbiter").find_next().text,
-            "Time control": details_content.find(text="Time control").find_next().text,
-            "Location": details_content.find(text="Location").find_next().text,
-            "Rounds": details_content.find(text="Number of rounds").find_next().text,
-            "Tournament type": details_content.find(text="Tournament type").find_next().text,
-            "Rating": details_content.find(text="Rating calculation").find_next().text.split(','),
-            "Date": details_content.find(text="Date").find_next().text
-        }
+    rows = details_table.find_all('tr')
+    for row in rows:
+        cells = row.find_all("td")
+        if len(cells) > 1:
+            key = cells[0].text.strip()  # the category
+            value = cells[1].text.strip()  # the associated data
+            data[key] = value
 
-        return tournament_data
-    return None
+    if "Date" in data:
+        data["Start Date"], data["End Date"] = data["Date"].split(" to ")
+        del data["Date"]
+
+    return data
 
 
-def process_url(url, driver, save_path="processed_data"):
+def process_url(url, driver, query, save_path="processed_data"):
     driver.get(url)
+
     close_obstructive_elements(driver)
 
     try:
@@ -160,34 +162,34 @@ def process_url(url, driver, save_path="processed_data"):
         print("Show details button not found or not clickable:", str(e))
         return
 
-    wait = WebDriverWait(driver, 5)
-
+    wait = WebDriverWait(driver, 10)
     try:
         details = wait.until(EC.presence_of_element_located((By.CLASS_NAME, 'CRsmall')))
     except Exception as e:
         print("Failed to load tournament details:", str(e))
         return
 
-    # Check for "Show tournament details" link and click if present
     try:
         show_tournament_details_link = driver.find_element(By.XPATH, '//a[contains(text(), "Show tournament details")]')
         show_tournament_details_link.click()
-
-        # Wait for the new details to load
-        time.sleep(2)
+        time.sleep(2)  # wait for the new content to load
     except Exception as e:
         print("Additional 'Show tournament details' link not found, proceeding to extract details directly:", str(e))
 
-    # Extract final details
     html_content = driver.page_source
     soup = BeautifulSoup(html_content, 'html.parser')
 
-    # Extract the tournament details
     tournament_data = extract_details(soup)
     if tournament_data:
+        print("Extracted Data:", tournament_data)  # Debugging line
         df = pd.DataFrame([tournament_data])
-        filename = f"{tournament_data['Tournament type'].replace(' ', '_')}_{tournament_data['Date'].replace('/', '-')}.csv"
-        df.to_csv(os.path.join(save_path, filename), index=False)
+
+        # Append to the main CSV file for the query
+        csv_filename = os.path.join(save_path, f"{query}_tournament_info.csv")
+        if not os.path.isfile(csv_filename):
+            df.to_csv(csv_filename, index=False)
+        else:
+            df.to_csv(csv_filename, mode='a', header=False, index=False)
 
 
 def setup_driver():
@@ -229,9 +231,9 @@ def set_tournament_and_dates(driver, query):
     )
 
     start_date_input.clear()
-    start_date_input.send_keys("01.01.2008")
+    start_date_input.send_keys("01.01.2019")
     end_date_input.clear()
-    end_date_input.send_keys("01.01.2020")
+    end_date_input.send_keys("03.03.2019")
 
 
 def set_max_results(driver, value):
@@ -276,32 +278,26 @@ def main():
     open_website(driver, "https://chess-results.com/TurnierSuche.aspx?lan=1")
     accept_cookies(driver)
 
-    # Create processed_data directory if it doesn't exist
     save_path = "processed_data"
     if not os.path.exists(save_path):
         os.makedirs(save_path)
 
     for query in queries:
         print("Processing query:", query)
-
-        csv_filename = query + ".csv"
-        if os.path.exists(csv_filename) == False:
+        csv_filename = f"{query}_tournament_info.csv"
+        if not os.path.exists(csv_filename):
             links = search_and_collect_data(driver, query)
             print("Tournament links for query", query, ":", links)
-
             df = pd.DataFrame({"Link": links, "Checked": False})
-            df.to_csv(csv_filename, index=False)
-
+            df.to_csv(csv_filename.replace("_tournament_info", ""), index=False)
         else:
-            df = pd.read_csv(csv_filename)
+            df = pd.read_csv(csv_filename.replace("_tournament_info", ""))
             links = df.loc[df["Checked"] == False, "Link"].tolist()
 
         for link in links:
-            process_url(link, driver)
+            process_url(link, driver, query, save_path)
             df.loc[df["Link"] == link, "Checked"] = True
-            df.to_csv(csv_filename, index=False)
-
-    driver.quit()
+            df.to_csv(csv_filename.replace("_tournament_info", ""), index=False)
 
 
 if __name__ == "__main__":

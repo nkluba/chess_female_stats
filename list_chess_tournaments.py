@@ -127,26 +127,8 @@ def close_obstructive_elements(driver):
     except Exception as e:
         print("Cookie consent dialog not found or already closed:", str(e))
 
-def process_url(url, driver, save_path="processed_data"):
-    driver.get(url)
-    close_obstructive_elements(driver)
-    # Click on the button to show tournament details
-    try:
-        show_details_button = driver.find_element(By.ID, 'cb_alleDetails')
-        show_details_button.click()
-    except Exception as e:
-        print("Show details button not found or not clickable:", str(e))
-        return
 
-    wait = WebDriverWait(driver, 10)
-    try:
-        details = wait.until(EC.presence_of_element_located((By.CLASS_NAME, 'CRsmall')))
-    except Exception as e:
-        print("Failed to load tournament details:", str(e))
-        return
-
-    html_content = driver.page_source
-    soup = BeautifulSoup(html_content, 'html.parser')
+def extract_details(soup):
     details_content = soup.find('div', {'id': 'details_div'})  # Replace with the actual div ID
 
     if details_content:
@@ -163,8 +145,46 @@ def process_url(url, driver, save_path="processed_data"):
             "Date": details_content.find(text="Date").find_next().text
         }
 
-        print(tournament_data)
+        return tournament_data
+    return None
 
+
+def process_url(url, driver, save_path="processed_data"):
+    driver.get(url)
+    close_obstructive_elements(driver)
+
+    try:
+        show_details_button = driver.find_element(By.ID, 'cb_alleDetails')
+        show_details_button.click()
+    except Exception as e:
+        print("Show details button not found or not clickable:", str(e))
+        return
+
+    wait = WebDriverWait(driver, 5)
+
+    try:
+        details = wait.until(EC.presence_of_element_located((By.CLASS_NAME, 'CRsmall')))
+    except Exception as e:
+        print("Failed to load tournament details:", str(e))
+        return
+
+    # Check for "Show tournament details" link and click if present
+    try:
+        show_tournament_details_link = driver.find_element(By.XPATH, '//a[contains(text(), "Show tournament details")]')
+        show_tournament_details_link.click()
+
+        # Wait for the new details to load
+        time.sleep(2)
+    except Exception as e:
+        print("Additional 'Show tournament details' link not found, proceeding to extract details directly:", str(e))
+
+    # Extract final details
+    html_content = driver.page_source
+    soup = BeautifulSoup(html_content, 'html.parser')
+
+    # Extract the tournament details
+    tournament_data = extract_details(soup)
+    if tournament_data:
         df = pd.DataFrame([tournament_data])
         filename = f"{tournament_data['Tournament type'].replace(' ', '_')}_{tournament_data['Date'].replace('/', '-')}.csv"
         df.to_csv(os.path.join(save_path, filename), index=False)

@@ -130,7 +130,6 @@ def close_obstructive_elements(driver):
 def process_url(url, driver, save_path="processed_data"):
     driver.get(url)
     close_obstructive_elements(driver)
-    time.sleep(10)
     # Click on the button to show tournament details
     try:
         show_details_button = driver.find_element(By.ID, 'cb_alleDetails')
@@ -163,6 +162,8 @@ def process_url(url, driver, save_path="processed_data"):
             "Rating": details_content.find(text="Rating calculation").find_next().text.split(','),
             "Date": details_content.find(text="Date").find_next().text
         }
+
+        print(tournament_data)
 
         df = pd.DataFrame([tournament_data])
         filename = f"{tournament_data['Tournament type'].replace(' ', '_')}_{tournament_data['Date'].replace('/', '-')}.csv"

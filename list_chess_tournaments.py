@@ -11,8 +11,6 @@ import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 import os
-import re
-from datetime import datetime
 
 
 def get_player_html(url):
@@ -24,6 +22,7 @@ def get_player_html(url):
 def fix_headers(headers):
     """Fixes headers by adding the 'Link' column."""
     if "Link" not in headers:
+        # Find the appropriate index to insert the 'Link' column
         index_to_insert = next(
             (i for i, header in enumerate(headers) if "FideID" in header), None
         )
@@ -32,66 +31,35 @@ def fix_headers(headers):
     return headers
 
 
-def extract_year_from_title(title):
-    """Extracts the year from the title string if present."""
-    match = re.search(r'\d{4}', title)
-    if match:
-        return int(match.group(0))
-    return None
+def parse_table(html_content):
+    """Parses HTML content and extracts table data."""
+    soup = BeautifulSoup(html_content, "html.parser")
+    title = soup.title.string.strip().replace(
+        "Chess-Results_Server_Chess-results.com_-_", ""
+    )
+    print(title)
 
+    # if "woman" in title.lower() or "girl" in title.lower() or "female" in title.lower():
+    #    return None, None, None
 
-def extract_date_from_update(text):
-    """Extracts the date from the last update text."""
-    match = re.search(r'Last update (\d{2}\.\d{2}\.\d{4})', text)
-    if match:
-        return datetime.strptime(match.group(1), "%d.%m.%Y").date()
-    return None
+    table = soup.find("table", class_="CRs1")
 
+    headers = [header.text.strip() for header in table.find_all("th")]
+    headers = fix_headers(headers)
 
-def get_tournament_date(soup, title):
-    """Get the tournament date from the title or last update date."""
-    year = extract_year_from_title(title)
-    if year:
-        return datetime(year, 1, 1).date()
-
-    last_update_text = soup.find("p", class_="CRsmall")
-    if last_update_text:
-        return extract_date_from_update(last_update_text.text)
-
-    return None  # If no date could be extracted
-
-
-def click_show_tournament_data(driver):
-    """Clicks 'Show tournament data' if the button exists."""
-    try:
-        show_data_button = WebDriverWait(driver, 5).until(
-            EC.element_to_be_clickable((By.PARTIAL_LINK_TEXT, "Show tournament data"))
-        )
-        show_data_button.click()
-    except Exception as e:
-        print("No 'Show tournament data' button found:", e)
-
-
-def click_show_tournament_details(driver):
-    """Clicks 'Show tournament details' and returns the HTML."""
-    try:
-        show_details_links = WebDriverWait(driver, 10).until(
-            EC.presence_of_all_elements_located((By.PARTIAL_LINK_TEXT, "Show tournament details"))
-        )
-
-        html_pages = []
-        for link in show_details_links:
-            link.click()
-            time.sleep(2)  # Waiting for the details page to load
-            html_pages.append(driver.page_source)
-            driver.back()  # Going back to the previous page
-            time.sleep(2)
-
-        return html_pages
-
-    except Exception as e:
-        print("No 'Show tournament details' links found or error occurred:", e)
-        return []
+    data = []
+    for row in table.find_all("tr"):
+        row_data = []
+        for cell in row.find_all(["td", "th"]):
+            if cell.find("a"):  # If cell contains a link
+                link = cell.find("a")["href"]
+                row_data.append(cell.text.strip())
+                row_data.append(link)
+            else:
+                row_data.append(cell.text.strip())
+        if row_data:
+            data.append(row_data)
+    return headers, data, title
 
 
 def extract_info_from_html(link):
@@ -124,7 +92,9 @@ def extract_info_from_html(link):
 def parse_fide_data(df):
     if "Link" in df.columns and not df["Link"].isnull().all():
         print(df)
+        # Apply the function only to rows where 'Link' is not None
         df = df.dropna(subset=["Link"])
+        # remove rows with wrong links. Sample (CZE instead of link): 45  45 Metastasio Niccolo CZE 0 None
         df = df[df["Link"].str.startswith("http")]
         df[["Federation", "Birth Year", "Sex", "FIDE Title", "World Rank"]] = df[
             "Link"
@@ -142,53 +112,26 @@ def create_dataframe(headers, data):
     except Exception as e:
         print("File can't be processed:", headers, data[:50])
         return pd.DataFrame()
+    # Else for team championships with other
+    # File can't be processed: ['Rk.', '', 'Team', '1b', '2b', '3b', '4b', '5b', '6b', 'TB1', 'TB2', 'TB3']
+    # [['Rk.', '', 'Team', '1a', '1b', '2a', '2b', '3a', '3b', '4a', '4b', '5a', '5b', '6a', '6b', 'TB1', 'TB2', 'TB3'],
+    # ['1', '', 'Germany I', '*', '*', '1', '1½', '1½', '2', '1½', '1½', '1½', '2', '2', '1½', '19', '16', '0']
+    #
 
 
 def process_url(url, save_path="processed_data"):
-    driver = setup_driver()
-    driver.get(url)
+    html_content = get_player_html(url)
+    print(html_content)
+    headers, table_data, title = parse_table(html_content)
 
-    try:
-        click_show_tournament_data(driver)
-
-        html_pages = click_show_tournament_details(driver)
-
-        for html_content in html_pages:
-            soup = BeautifulSoup(html_content, "html.parser")
-            title = soup.title.string.strip().replace(
-                "Chess-Results_Server_Chess-results.com_-_", ""
-            )
-            print("Title:", title)
-
-            tournament_date = get_tournament_date(soup, title)
-            print("Tournament Date:", tournament_date)
-
-            table = soup.find("table", class_="CRs1")
-            headers = [header.text.strip() for header in table.find_all("th")]
-            headers = fix_headers(headers)
-
-            data = []
-            for row in table.find_all("tr"):
-                row_data = []
-                for cell in row.find_all(["td", "th"]):
-                    if cell.find("a"):  # If cell contains a link
-                        link = cell.find("a")["href"]
-                        row_data.append(cell.text.strip())
-                        row_data.append(link)
-                    else:
-                        row_data.append(cell.text.strip())
-                if row_data:
-                    data.append(row_data)
-            if table_data is not None:
-                df = create_dataframe(headers, data)
-                if "Link" in df.columns:
-                    df = parse_fide_data(df)
-                    df = df[df["Link"].notna()]
-                    df["Tournament_Date"] = tournament_date
-                    filename = f"{title.replace(' ', '_')}.csv"
-                    df.to_csv(os.path.join(save_path, filename), index=False)
-    finally:
-        driver.quit()
+    if table_data is not None:
+        df = create_dataframe(headers, table_data)
+        if "Link" in df.columns:
+            print(df)
+            df = parse_fide_data(df)
+            df = df[df["Link"].notna()]
+            filename = f"{title.replace(' ', '_')}.csv"
+            df.to_csv(os.path.join(save_path, filename), index=False)
 
 
 def setup_driver():
@@ -273,21 +216,20 @@ def search_and_collect_data(driver, query):
 
 def main():
     queries = ["European Youth", "International Open", "World Youth"]
+    driver = setup_driver()
+    open_website(driver, "https://chess-results.com/TurnierSuche.aspx?lan=1")
+    accept_cookies(driver)
 
     # Create processed_data directory if it doesn't exist
     save_path = "processed_data"
     if not os.path.exists(save_path):
         os.makedirs(save_path)
 
-    driver = setup_driver()
-    open_website(driver, "https://chess-results.com/TurnierSuche.aspx?lan=1")
-    accept_cookies(driver)
-
     for query in queries:
         print("Processing query:", query)
 
         csv_filename = query + ".csv"
-        if not os.path.exists(csv_filename):
+        if os.path.exists(csv_filename) == False:
             links = search_and_collect_data(driver, query)
             print("Tournament links for query", query, ":", links)
 
@@ -299,7 +241,7 @@ def main():
             links = df.loc[df["Checked"] == False, "Link"].tolist()
 
         for link in links:
-            process_url(link, save_path=save_path)
+            process_url(link)
             df.loc[df["Link"] == link, "Checked"] = True
             df.to_csv(csv_filename, index=False)
 

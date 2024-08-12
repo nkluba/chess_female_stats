@@ -11,7 +11,38 @@ import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 import os
+import re
+from datetime import datetime
 
+
+def extract_year_from_title(title):
+    """Extracts the year from the title string if present."""
+    match = re.search(r'\d{4}', title)
+    if match:
+        return int(match.group(0))
+    return None
+
+
+def extract_date_from_update(text):
+    """Extracts the date from the last update text."""
+    # Example of "Last update 03.12.2019 20:47:24"
+    match = re.search(r'Last update (\d{2}\.\d{2}\.\d{4})', text)
+    if match:
+        return datetime.strptime(match.group(1), "%d.%m.%Y").date()
+    return None
+
+
+def get_tournament_date(soup, title):
+    """Get the tournament date from the title or last update date."""
+    year = extract_year_from_title(title)
+    if year:
+        return datetime(year, 1, 1).date()
+
+    last_update_text = soup.find("p", class_="CRsmall")
+    if last_update_text:
+        return extract_date_from_update(last_update_text.text)
+
+    return None  # If no date could be extracted
 
 def get_player_html(url):
     """Fetches HTML content from the given URL."""
@@ -37,12 +68,12 @@ def parse_table(html_content):
     title = soup.title.string.strip().replace(
         "Chess-Results_Server_Chess-results.com_-_", ""
     )
-    print(title)
-
-    # if "woman" in title.lower() or "girl" in title.lower() or "female" in title.lower():
-    #    return None, None, None
+    print("Title:", title)
 
     table = soup.find("table", class_="CRs1")
+
+    tournament_date = get_tournament_date(soup, title)
+    print("Tournament Date:", tournament_date)
 
     headers = [header.text.strip() for header in table.find_all("th")]
     headers = fix_headers(headers)
@@ -59,7 +90,8 @@ def parse_table(html_content):
                 row_data.append(cell.text.strip())
         if row_data:
             data.append(row_data)
-    return headers, data, title
+
+    return headers, data, title, tournament_date
 
 
 def extract_info_from_html(link):
@@ -121,7 +153,7 @@ def create_dataframe(headers, data):
 
 def process_url(url, save_path="processed_data"):
     html_content = get_player_html(url)
-    headers, table_data, title = parse_table(html_content)
+    headers, table_data, title, tournament_date = parse_table(html_content)
 
     if table_data is not None:
         df = create_dataframe(headers, table_data)
@@ -129,6 +161,10 @@ def process_url(url, save_path="processed_data"):
             print(df)
             df = parse_fide_data(df)
             df = df[df["Link"].notna()]
+
+            # Add the Tournament_Date column
+            df["Tournament_Date"] = tournament_date
+
             filename = f"{title.replace(' ', '_')}.csv"
             df.to_csv(os.path.join(save_path, filename), index=False)
 

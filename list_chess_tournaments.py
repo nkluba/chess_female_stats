@@ -118,20 +118,55 @@ def create_dataframe(headers, data):
     # ['1', '', 'Germany I', '*', '*', '1', '1½', '1½', '2', '1½', '1½', '1½', '2', '2', '1½', '19', '16', '0']
     #
 
+def close_obstructive_elements(driver):
+    try:
+        # Close the cookie consent dialog if present
+        close_button = driver.find_element(By.ID, 'CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll')
+        close_button.click()
+        time.sleep(2)  # wait for the dialogue to close
+    except Exception as e:
+        print("Cookie consent dialog not found or already closed:", str(e))
 
-def process_url(url, save_path="processed_data"):
-    html_content = get_player_html(url)
-    print(html_content)
-    headers, table_data, title = parse_table(html_content)
+def process_url(url, driver, save_path="processed_data"):
+    driver.get(url)
+    close_obstructive_elements(driver)
+    time.sleep(10)
+    # Click on the button to show tournament details
+    try:
+        show_details_button = driver.find_element(By.ID, 'cb_alleDetails')
+        show_details_button.click()
+    except Exception as e:
+        print("Show details button not found or not clickable:", str(e))
+        return
 
-    if table_data is not None:
-        df = create_dataframe(headers, table_data)
-        if "Link" in df.columns:
-            print(df)
-            df = parse_fide_data(df)
-            df = df[df["Link"].notna()]
-            filename = f"{title.replace(' ', '_')}.csv"
-            df.to_csv(os.path.join(save_path, filename), index=False)
+    wait = WebDriverWait(driver, 10)
+    try:
+        details = wait.until(EC.presence_of_element_located((By.CLASS_NAME, 'CRsmall')))
+    except Exception as e:
+        print("Failed to load tournament details:", str(e))
+        return
+
+    html_content = driver.page_source
+    soup = BeautifulSoup(html_content, 'html.parser')
+    details_content = soup.find('div', {'id': 'details_div'})  # Replace with the actual div ID
+
+    if details_content:
+        tournament_data = {
+            "Organizer": details_content.find(text="Organizer(s)").find_next().text,
+            "Federation": details_content.find(text="Federation").find_next().text,
+            "Director": details_content.find(text="Tournament director").find_next().text,
+            "Arbiter": details_content.find(text="Chief Arbiter").find_next().text,
+            "Time control": details_content.find(text="Time control").find_next().text,
+            "Location": details_content.find(text="Location").find_next().text,
+            "Rounds": details_content.find(text="Number of rounds").find_next().text,
+            "Tournament type": details_content.find(text="Tournament type").find_next().text,
+            "Rating": details_content.find(text="Rating calculation").find_next().text.split(','),
+            "Date": details_content.find(text="Date").find_next().text
+        }
+
+        df = pd.DataFrame([tournament_data])
+        filename = f"{tournament_data['Tournament type'].replace(' ', '_')}_{tournament_data['Date'].replace('/', '-')}.csv"
+        df.to_csv(os.path.join(save_path, filename), index=False)
 
 
 def setup_driver():
@@ -241,7 +276,7 @@ def main():
             links = df.loc[df["Checked"] == False, "Link"].tolist()
 
         for link in links:
-            process_url(link)
+            process_url(link, driver)
             df.loc[df["Link"] == link, "Checked"] = True
             df.to_csv(csv_filename, index=False)
 
